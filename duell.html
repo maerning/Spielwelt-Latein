@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Gladiatoren-Duell</title></head>
+<body><script src="kit.js"></script>
+<script>
+(async () => {
+const {W, H, ctx} = K;
+const IMG = await K.load({bg:'img/arena.jpg', glad:'img/gladiator.png', glad2:'img/gladiator_blau.png'});
+const LIVES = 5;
+const P = [
+  {name:'ROT',  col:'#d62839', dark:'#7d0f1c', x: 470, img:'glad', flip:false, keys:['KeyQ','KeyA'], keyLbl:['Q','A']},
+  {name:'BLAU', col:'#1f6fd6', dark:'#0b3b80', x: 810, img:'glad2', flip:true, keys:['KeyP','KeyL'], keyLbl:['P','L']}
+];
+let state = 'title', mode = 2, round, winner, t0, cpuT, used;
+const BTN = [
+  [{x: 30, y: 400, w: 330, h: 110}, {x: 30, y: 545, w: 330, h: 110}],
+  [{x: W-360, y: 400, w: 330, h: 110}, {x: W-360, y: 545, w: 330, h: 110}]
+];
+const MODEBTN = [{x: W/2 - 360, y: 470, w: 330, h: 95}, {x: W/2 + 30, y: 470, w: 330, h: 95}];
+
+function reset() { P.forEach(p => { p.lives = LIVES; p.lock = 0; p.lunge = 0; p.hurt = 0; p.score = 0; }); used = []; K.clearFx(); next(); }
+function next() {
+  let w; do { w = K.pick(K.WORDS); } while (used.includes(w) && used.length < K.WORDS.length - 1);
+  used.push(w);
+  round = {w, opts: P.map(() => K.shuffle([w[1], w[2]])), done: false, t: 0, pick: [null, null], winnerSide: null};
+  P.forEach(p => p.lock = 0);
+  cpuT = 2.2 + Math.random() * 2.3;
+}
+function press(side, i) {
+  const p = P[side];
+  if (state !== 'fight' || round.done || p.lock > 0 || round.pick[side] !== null) return;
+  if (mode === 1 && side === 1 && arguments.length < 3) return; // Computer spielt rechts
+  round.pick[side] = i;
+  if (round.opts[side][i] === round.w[1]) {
+    round.done = true; round.winnerSide = side; round.t = 0;
+    const o = P[1 - side]; o.lives--; o.hurt = .6; p.lunge = .5; p.score++;
+    K.sfx.right(); setTimeout(() => K.sfx.bonk(), 180);
+    K.float(o.x, 180, K.pick(['BONK!','PLONK!','KLONG!','PENG!']), p.col, 64);
+    K.confetti(p.x, 300, 20);
+    if (o.lives <= 0) { winner = side; setTimeout(() => { state = 'end'; t0 = performance.now(); K.musicOn = false; K.sfx.win(); for (let k = 0; k < 6; k++) setTimeout(() => K.confetti(200 + Math.random()*880, 250), k*200); }, 900); }
+  } else {
+    p.lock = 1.4; K.sfx.wrong(); K.float(p.x, 260, 'Ups!', '#ff4d6d', 44);
+    if (round.pick[0] !== null && round.pick[1] !== null) { round.done = true; round.t = 0; }
+  }
+}
+K.onTap = (x, y) => {
+  if (state === 'title') { MODEBTN.forEach((b, i) => { if (K.hit(x, y, b)) start(i === 0 ? 2 : 1); }); return; }
+  if (state === 'end') { if (performance.now() - t0 > 1200) state = 'title'; return; }
+  BTN.forEach((side, s) => side.forEach((b, i) => { if (K.hit(x, y, b)) press(s, i); }));
+};
+K.onKey = e => {
+  if (state === 'title') { if (e.code === 'Digit1') start(1); if (e.code === 'Digit2' || e.code === 'Space') start(2); return; }
+  if (state === 'end') { if (performance.now() - t0 > 1200) state = 'title'; return; }
+  P.forEach((p, s) => p.keys.forEach((k, i) => { if (e.code === k) press(s, i); }));
+};
+function start(m) { mode = m; reset(); state = 'fight'; K.musicOn = true; K.music(...K.MEL.marsch, .15); K.sfx.horn(); }
+
+function update(dt) {
+  if (state !== 'fight') return;
+  P.forEach(p => { p.lock = Math.max(0, p.lock - dt); p.lunge = Math.max(0, p.lunge - dt); p.hurt = Math.max(0, p.hurt - dt); });
+  if (round.done) { round.t += dt; if (round.t > 1.3 && P.every(p => p.lives > 0)) next(); return; }
+  if (round.pick[0] !== null && round.pick[1] !== null && P.every(p => p.lock <= 0)) { round.done = true; round.t = 0; }
+  if (mode === 1 && round.pick[1] === null) {
+    cpuT -= dt;
+    if (cpuT <= 0) { const ok = Math.random() < .72; const i = round.opts[1].indexOf(ok ? round.w[1] : round.w[2]); press(1, i, true); }
+  }
+  // wenn beide falsch: Sperre ablaufen lassen, dann neues Wort
+}
+function drawGlad(p, s, t) {
+  const lung = p.lunge > 0 ? Math.sin((1 - p.lunge / .5) * Math.PI) * 90 : 0;
+  const shake = p.hurt > 0 ? Math.sin(t * 60) * 10 * p.hurt : 0;
+  const x = p.x + (s === 0 ? lung : -lung) + shake;
+  const bob = Math.sin(t * 5 + s) * 4;
+  ctx.fillStyle = 'rgba(0,0,0,.22)'; ctx.beginPath(); ctx.ellipse(x, 652, 80, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.save(); if (p.hurt > 0) ctx.globalAlpha = .6 + .4 * Math.abs(Math.sin(t * 30));
+  K.drawH(IMG[p.img], x, 655 + bob, 300, p.flip); ctx.restore();
+  if (p.hurt > 0) K.text('💫', x, 340, 50, '#fff');
+}
+function drawShields(p, s) {
+  for (let i = 0; i < LIVES; i++) {
+    const x = s === 0 ? 100 + i * 52 : W - 150 - i * 52, y = 40, on = i < p.lives;
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI*2); ctx.fillStyle = on ? p.col : 'rgba(80,80,80,.5)'; ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = on ? '#ffd23f' : '#ccc'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.fillStyle = on ? '#ffd23f' : '#aaa'; ctx.fill();
+  }
+  K.text('TEAM ' + p.name + (mode === 1 && s === 1 ? ' (Computer)' : ''), s === 0 ? 205 : W - 255, 85, 24, '#fff', {stroke: p.dark, sw: 6});
+}
+function draw(dt, t) {
+  K.drawCover(IMG.bg);
+  if (state === 'title') {
+    K.drawH(IMG.glad, 240, 700, 330);
+    K.drawH(IMG.glad2, W - 240, 700, 330, true);
+    K.panel(780, 470, 330, false);
+    K.title('GLADIATOREN-DUELL', 165, 62);
+    K.text('Ein lateinisches Wort erscheint.', W/2, 235, 30, '#3b2a1a');
+    K.text('Wer zuerst die richtige Übersetzung antippt,', W/2, 285, 26, '#6b4f2a', {weight:500});
+    K.text('landet einen Treffer! 5 Treffer gewinnen.', W/2, 322, 26, '#6b4f2a', {weight:500});
+    K.text('Falsch getippt? Dann musst du kurz warten.', W/2, 365, 24, '#6b4f2a', {weight:500});
+    K.button(MODEBTN[0], '👥 2 Spieler', null, {colors:['#ffe1e1','#ffb3b3'], border:'#d62839', pulse:true});
+    K.button(MODEBTN[1], '🤖 Gegen Computer', null, {colors:['#dbe9ff','#a9c8ff'], border:'#1f6fd6'});
+    K.drawFx(dt); return;
+  }
+  P.forEach((p, s) => drawGlad(p, s, t));
+  P.forEach((p, s) => drawShields(p, s));
+  if (state === 'fight') {
+    // Wort
+    const bw = 520;
+    K.rr(W/2 - bw/2, 120, bw, 120, 32); const g = ctx.createLinearGradient(0,120,0,240); g.addColorStop(0,'#b3202f'); g.addColorStop(1,'#7d0f1c');
+    ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 7; ctx.strokeStyle = '#ffd23f'; ctx.stroke();
+    K.text('Was heißt …', W/2, 148, 22, '#ffe9a8', {weight:500});
+    K.text(round.w[0] + ' ?', W/2, 196, K.fit(round.w[0] + ' ?', bw - 40, 62), '#fff', {stroke:'#4a0710', sw:8});
+    P.forEach((p, s) => {
+      const cpu = mode === 1 && s === 1;
+      BTN[s].forEach((b, i) => {
+        let st = null;
+        if (round.done) st = round.opts[s][i] === round.w[1] ? 'ok' : (round.pick[s] === i ? 'bad' : 'dim');
+        else if (round.pick[s] === i) st = 'bad';
+        else if (p.lock > 0) st = 'dim';
+        K.button(b, round.opts[s][i], st, {colors: s === 0 ? ['#fff3f3','#ffc9c9'] : ['#f1f6ff','#c4d9ff'], border: p.col});
+        if (!cpu) { ctx.beginPath(); ctx.arc(b.x + 24, b.y + 24, 16, 0, Math.PI*2); ctx.fillStyle = p.dark; ctx.fill(); K.text(p.keyLbl[i], b.x + 24, b.y + 25, 18, '#fff'); }
+      });
+      if (p.lock > 0 && !round.done) K.text('⏳', BTN[s][0].x + 165, 375, 36, '#fff');
+    });
+    if (round.done && round.winnerSide === null) K.text('Beide daneben! ' + round.w[0] + ' = ' + round.w[1], W/2, 300, 32, '#fff', {stroke:'#000', sw:6});
+  }
+  K.drawFx(dt);
+  if (state === 'end') {
+    const p = P[winner];
+    K.panel(780, 440);
+    K.title('TEAM ' + p.name + ' SIEGT!', 210, 70, '#ffd23f', p.dark);
+    K.text(mode === 1 && winner === 1 ? 'Der Computer war diesmal schneller – probier es nochmal!' : 'Ave, Champion der Arena! 🏆', W/2, 290, 32, '#3b2a1a');
+    K.text('Treffer: Rot ' + P[0].score + '  –  Blau ' + P[1].score, W/2, 350, 30, '#6b4f2a', {weight:500});
+    K.drawH(IMG[p.img], W/2, 520, 130, p.flip);
+    if (performance.now() - t0 > 1200) K.blink('Tippen für ein neues Duell!', 540);
+  }
+}
+K.loop((dt, t) => { update(dt); draw(dt, t); });
+window.__game = {get state(){return state}, get round(){return round}, press, start, P};
+})();
+</script></body></html>

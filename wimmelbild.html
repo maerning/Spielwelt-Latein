@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Wimmelbild: Markt in Rom</title></head>
+<body><script src="kit.js"></script>
+<script>
+(async () => {
+const {W, H, ctx} = K;
+const IMG = await K.load({bg:'img/markt.jpg'});
+const SX = W / 1200, SY = H / 671;
+// Latein, Deutsch, Bereich im Bild (x1, y1, x2, y2 in Bildkoordinaten 1200×671)
+const ITEMS = [
+  ['cista','die Kiste',[18,490,248,655]], ['rosa','die Rose',[180,210,400,440]], ['lampas','die Lampe',[395,485,540,565]],
+  ['corona','die Krone',[635,430,725,495]], ['camelus','das Kamel',[955,260,1145,465]], ['palma','die Palme',[825,15,1050,290]],
+  ['saccus','der Sack',[1055,505,1200,665]], ['papyrus','das Papier',[15,320,100,400]], ['mus','die Maus',[62,435,150,490]],
+  ['delphinus','der Delfin',[600,260,710,390]], ['elephantus','der Elefant',[835,485,1040,645]], ['fenestra','das Fenster',[125,15,205,105]]
+];
+const ROUND = 8;
+let state = 'title', list, idx, found, findT, misses, startT, t0, wrongMarks;
+
+function start() { list = K.shuffle(ITEMS.slice()).slice(0, ROUND); idx = 0; found = []; findT = 0; misses = 0; wrongMarks = []; startT = performance.now(); state = 'play'; K.clearFx(); K.musicOn = true; K.music(...K.MEL.froh, .17); }
+const rect = it => ({x: it[2][0]*SX, y: it[2][1]*SY, w: (it[2][2]-it[2][0])*SX, h: (it[2][3]-it[2][1])*SY});
+K.onTap = (x, y) => {
+  if (state === 'title') { start(); return; }
+  if (state === 'end') { if (performance.now() - t0 > 1200) start(); return; }
+  if (y < 120) return;
+  const it = list[idx], r = rect(it), pad = 18;
+  if (K.hit(x, y, {x: r.x - pad, y: r.y - pad, w: r.w + 2*pad, h: r.h + 2*pad})) {
+    found.push(it); K.sfx.right(); K.confetti(r.x + r.w/2, r.y + r.h/2, 35);
+    K.float(r.x + r.w/2, r.y - 10, it[0] + ' = ' + it[1], '#2ecc71', 36);
+    idx++; findT = 0;
+    if (idx >= ROUND) { state = 'end'; t0 = performance.now(); K.musicOn = false; setTimeout(() => K.sfx.win(), 400); for (let k = 0; k < 5; k++) setTimeout(() => K.confetti(200 + Math.random()*880, 250), 300 + k*200); }
+  } else {
+    misses++; K.sfx.tap(); wrongMarks.push({x, y, t: .8});
+  }
+};
+K.onKey = e => { if (state !== 'play' && ['Space','Enter'].includes(e.code)) K.onTap(-1, 500); };
+
+function ring(r, col, lw, pulse = 0) {
+  ctx.beginPath(); ctx.ellipse(r.x + r.w/2, r.y + r.h/2, r.w/2 + 12 + pulse, r.h/2 + 12 + pulse, 0, 0, Math.PI*2);
+  ctx.lineWidth = lw; ctx.strokeStyle = col; ctx.stroke();
+}
+function draw(dt, t) {
+  ctx.drawImage(IMG.bg, 0, 0, W, H);
+  if (state === 'title') {
+    K.panel(800, 460);
+    K.title('WIMMELBILD', 175, 76);
+    K.text('Markttag im alten Rom!', W/2, 245, 34, '#3b2a1a');
+    K.text('Oben steht ein lateinisches Wort, z. B. „cista“.', W/2, 310, 28, '#6b4f2a', {weight:500});
+    K.text('Was könnte das sein? Finde es im Bild und tippe es an!', W/2, 350, 28, '#6b4f2a', {weight:500});
+    K.text('🔍 ' + ROUND + ' Dinge sind versteckt', W/2, 410, 30, '#3b2a1a');
+    K.blink('Tippen zum Starten!', 490);
+    K.drawFx(dt); return;
+  }
+  // gefundene Dinge markieren
+  for (const it of found) { const r = rect(it); ring(r, '#2ecc71', 6); K.text(it[0], r.x + r.w/2, r.y + r.h + 26, 22, '#fff', {stroke:'#1e7a45', sw:6}); }
+  for (const m of wrongMarks) { m.t -= dt; ctx.globalAlpha = Math.max(0, m.t); K.text('✘', m.x, m.y, 40, '#ff4d6d', {stroke:'#fff', sw:6}); ctx.globalAlpha = 1; }
+  wrongMarks = wrongMarks.filter(m => m.t > 0);
+  if (state === 'play') {
+    findT += dt;
+    const it = list[idx];
+    // Suchauftrag
+    const bw = 470;
+    K.rr(W/2 - bw/2, 12, bw, 100, 30); const g = ctx.createLinearGradient(0,12,0,112); g.addColorStop(0,'#b3202f'); g.addColorStop(1,'#7d0f1c');
+    ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#ffd23f'; ctx.stroke();
+    K.text('Finde im Bild:', W/2, 36, 22, '#ffe9a8', {weight:500});
+    K.text(it[0], W/2, 78, 54, '#fff', {stroke:'#4a0710', sw:8});
+    K.pill(70, 24, 150, '🔍 ' + idx + ' / ' + ROUND, '#7ae582');
+    K.pill(228, 24, 150, '⏱ ' + Math.floor((performance.now() - startT)/1000) + ' s', '#fff');
+    if (findT > 9) K.text('Tipp: ' + it[0] + ' = ' + it[1], W/2, 140, 30, '#fff', {stroke:'#7d0f1c', sw:7});
+    if (findT > 18) ring(rect(it), 'rgba(255,210,63,.9)', 6, Math.sin(t*6)*8);
+  }
+  K.drawFx(dt);
+  if (state === 'end') {
+    const sec = Math.round((t0 - startT) / 1000);
+    K.panel(760, 430);
+    K.title('ALLES GEFUNDEN!', 205, 66);
+    K.text('in ' + sec + ' Sekunden', W/2, 280, 40, '#3b2a1a');
+    K.text(misses === 0 ? 'Ohne Fehlklick – Adlerauge! 🦅' : misses + ' Fehlklicks', W/2, 335, 28, '#6b4f2a', {weight:500});
+    K.text(list.map(i => i[0]).slice(0, 4).join(' • '), W/2, 385, 24, '#7d0f1c');
+    K.text(list.map(i => i[0]).slice(4).join(' • '), W/2, 418, 24, '#7d0f1c');
+    if (performance.now() - t0 > 1200) K.blink('Tippen für eine neue Runde!', 480);
+  }
+}
+K.loop((dt, t) => draw(dt, t));
+window.__game = {get state(){return state}, get cur(){return list && list[idx]}, rect, start};
+})();
+</script></body></html>

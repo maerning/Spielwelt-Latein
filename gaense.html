@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Gänse-Alarm auf dem Kapitol</title></head>
+<body><script src="kit.js"></script>
+<script>
+(async () => {
+const {W, H, ctx} = K;
+const IMG = await K.load({bg:'img/kapitol.jpg', gans:'img/gans.png'});
+// Verstecke: x = Mitte, y = Oberkante des Busches (dahinter taucht die Gans auf), s = Größe
+const SPOTS = [
+  {x: 173, y: 392, s: .6}, {x: 438, y: 388, s: .6}, {x: 688, y: 388, s: .6}, {x: 1107, y: 398, s: .6},
+  {x: 148, y: 553, s: .9}, {x: 648, y: 553, s: .9}, {x: 1138, y: 553, s: .9}
+];
+const TIME = 60;
+let state = 'title', geese, target, timeLeft, score, found, combo, waveT, waveLen, t0, missMsg;
+
+function bush(x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  const blobs = [[-95, 30, 55], [-45, 5, 65], [15, -5, 70], [75, 15, 60], [110, 40, 45], [-120, 50, 40]];
+  ctx.fillStyle = '#2f7a1f'; blobs.forEach(([bx, by, r]) => { ctx.beginPath(); ctx.arc(bx, by + 6, r, 0, Math.PI*2); ctx.fill(); });
+  ctx.fillStyle = '#4caa2c'; blobs.forEach(([bx, by, r]) => { ctx.beginPath(); ctx.arc(bx, by, r * .92, 0, Math.PI*2); ctx.fill(); });
+  ctx.fillStyle = 'rgba(255,255,255,.18)'; blobs.forEach(([bx, by, r]) => { ctx.beginPath(); ctx.arc(bx - r*.3, by - r*.35, r * .35, 0, Math.PI*2); ctx.fill(); });
+  ctx.fillStyle = '#2f7a1f'; ctx.fillRect(-150, 50, 290, 60);
+  ctx.restore();
+}
+function wave() {
+  const w = K.pick(K.WORDS);
+  const others = K.shuffle(K.WORDS.filter(x => x !== w)).slice(0, 2);
+  const spots = K.shuffle(SPOTS.map((_, i) => i)).slice(0, 3);
+  target = w;
+  geese = [w, ...others].map((ww, i) => ({w: ww, spot: SPOTS[spots[i]], up: 0, state: 'rise', flip: Math.random() < .5, shake: 0, fly: 0, ok: ww === w}));
+  waveLen = Math.max(3.2, 6 - found * .18); waveT = 0;
+}
+function start() { score = 0; found = 0; combo = 0; timeLeft = TIME; missMsg = null; state = 'play'; K.clearFx(); K.musicOn = true; K.music(...K.MEL.tarantella, .14); wave(); }
+function tapGoose(g) {
+  if (g.state === 'gone' || g.state === 'fly') return;
+  if (g.ok) {
+    combo++; found++; const pts = 10 + Math.min(combo - 1, 5) * 2; score += pts;
+    g.state = 'fly'; K.sfx.right(); K.confetti(g.spot.x, g.spot.y - 150, 35);
+    K.float(g.spot.x, g.spot.y - 260, K.pick(['Bravo!','Optime!','Super!','Bene!']) + ' +' + pts, '#2ecc71', 40);
+    geese.forEach(o => { if (o !== g && o.state !== 'gone') o.state = 'down'; });
+    setTimeout(() => { if (state === 'play') wave(); }, 900);
+  } else {
+    combo = 0; g.shake = .5; K.sfx.honk();
+    K.float(g.spot.x, g.spot.y - 260, g.w[0] + ' = ' + g.w[1], '#ff4d6d', 32);
+  }
+}
+K.onTap = (x, y) => {
+  if (state === 'title') { start(); return; }
+  if (state === 'end') { if (performance.now() - t0 > 1200) start(); return; }
+  // vordere Gänse zuerst prüfen
+  const order = geese.slice().sort((a, b) => b.spot.y - a.spot.y);
+  for (const g of order) {
+    if (g.up < .5 || g.state === 'gone' || g.state === 'fly') continue;
+    const s = g.spot.s, top = g.spot.y - 250 * s * g.up;
+    if (x > g.spot.x - 120*s && x < g.spot.x + 120*s && y > top - 40*s && y < g.spot.y + 30) { tapGoose(g); return; }
+  }
+};
+K.onKey = e => { if (state !== 'play' && ['Space','Enter'].includes(e.code)) K.onTap(-1, -1); };
+
+function update(dt) {
+  if (state !== 'play') return;
+  timeLeft -= dt;
+  if (timeLeft <= 0) { state = 'end'; t0 = performance.now(); K.musicOn = false; K.best('gaenseBest', score); K.sfx.win(); return; }
+  waveT += dt;
+  for (const g of geese) {
+    g.shake = Math.max(0, g.shake - dt);
+    if (g.state === 'rise') { g.up = Math.min(1, g.up + dt * 4); if (g.up >= 1) g.state = 'stay'; }
+    if (g.state === 'down') { g.up = Math.max(0, g.up - dt * 4); if (g.up <= 0) g.state = 'gone'; }
+    if (g.state === 'fly') g.fly += dt;
+  }
+  if (waveT > waveLen && geese.every(g => g.state !== 'fly')) {
+    if (geese.some(g => g.state === 'stay' || g.state === 'rise')) {
+      combo = 0; missMsg = {txt: 'Zu langsam! ' + target[0] + ' = ' + target[1], t: 1.6};
+      geese.forEach(g => g.state = 'down');
+    }
+    if (geese.every(g => g.state === 'gone')) wave();
+  }
+  if (missMsg) { missMsg.t -= dt; if (missMsg.t <= 0) missMsg = null; }
+}
+function drawGoose(g, t) {
+  const s = g.spot.s, h = 210 * s;
+  const rise = g.up;
+  if (rise <= 0 && g.state !== 'fly') return;
+  ctx.save();
+  // Clip: nur oberhalb des Busches sichtbar (außer beim Wegfliegen)
+  if (g.state !== 'fly') { ctx.beginPath(); ctx.rect(g.spot.x - 260, 0, 520, g.spot.y + 40*s); ctx.clip(); }
+  let x = g.spot.x + (g.shake > 0 ? Math.sin(t*60) * 12 * g.shake : 0);
+  let y = g.spot.y + 40*s + (1 - rise) * h;
+  if (g.state === 'fly') { x += g.fly * 500; y -= g.fly * 700; }
+  const bob = g.state === 'stay' ? Math.sin(t*6 + g.spot.x) * 4 : 0;
+  K.drawH(IMG.gans, x, y + bob, h, g.flip);
+  // Schild über dem Kopf (für hintere Gänse nicht zu klein)
+  const ss = Math.max(s, .85);
+  const sy = y + bob - h - 30*s;
+  ctx.fillStyle = '#8b5a2b'; ctx.fillRect(x - 5*ss, sy, 10*ss, 40*s);
+  const bw = Math.max(170, K.fit(g.w[0], 400, 40) * g.w[0].length * .6 + 50) * ss;
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; K.rr(x - bw/2 + 4, sy - 58*ss + 5, bw, 64*ss, 14); ctx.fill();
+  K.rr(x - bw/2, sy - 58*ss, bw, 64*ss, 14); ctx.fillStyle = g.shake > 0 ? '#ffc4cc' : '#fff4d6'; ctx.fill(); ctx.lineWidth = 5; ctx.strokeStyle = '#8b5a2b'; ctx.stroke();
+  K.text(g.w[0], x, sy - 26*ss, K.fit(g.w[0], bw - 20, 40 * ss), '#3b2a1a');
+  ctx.restore();
+}
+function draw(dt, t) {
+  K.drawCover(IMG.bg);
+  // hintere Reihe: Gänse dann Busch; vordere Reihe ebenso
+  const rows = [...new Set(SPOTS.map(s => s.y))].sort((a, b) => a - b);
+  for (const ry of rows) {
+    if (state === 'play') geese.filter(g => g.spot.y === ry && g.state !== 'fly').forEach(g => drawGoose(g, t));
+    SPOTS.filter(s => s.y === ry).forEach(s => bush(s.x, s.y + 35*s.s, s.s));
+  }
+  if (state === 'play') geese.filter(g => g.state === 'fly').forEach(g => drawGoose(g, t));
+  if (state === 'title') {
+    K.panel(940, 470);
+    K.title('GÄNSE-ALARM!', 175, 76);
+    K.drawH(IMG.gans, W/2 - 365, 520, 105, false);
+    K.drawH(IMG.gans, W/2 + 365, 520, 105, true);
+    K.text('Die Gänse vom Kapitol', W/2, 245, 32, '#3b2a1a');
+    K.text('haben lateinische Schilder dabei!', W/2, 285, 28, '#3b2a1a', {weight:500});
+    K.text('Oben steht, was du suchst – z. B. „die Maus“.', W/2, 360, 26, '#6b4f2a', {weight:500});
+    K.text('Tippe schnell die Gans mit dem richtigen Wort (mus)!', W/2, 400, 26, '#6b4f2a', {weight:500});
+    const b = K.best('gaenseBest'); if (b) K.text('Rekord: ⭐ ' + b, W/2, 445, 24, '#6b4f2a', {weight:500});
+    K.blink('Tippen zum Starten! (' + TIME + ' Sekunden)', 520);
+  }
+  K.drawFx(dt);
+  if (state === 'play') {
+    const bw = 470;
+    K.rr(W/2 - bw/2, 18, bw, 92, 30); const g = ctx.createLinearGradient(0,18,0,110); g.addColorStop(0,'#b3202f'); g.addColorStop(1,'#7d0f1c');
+    ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#ffd23f'; ctx.stroke();
+    K.text('Finde:', W/2, 40, 22, '#ffe9a8', {weight:500});
+    K.text(target[1], W/2, 78, K.fit(target[1], bw - 40, 50), '#fff', {stroke:'#4a0710', sw:7});
+    K.pill(70, 30, 150, '⭐ ' + score);
+    K.pill(228, 30, 150, '⏱ ' + Math.ceil(timeLeft) + ' s', timeLeft < 10 ? '#ff4d6d' : '#fff');
+    if (combo >= 3) K.text(combo + 'er-Serie!', W/2, 140, 32, '#ffd23f', {stroke:'#7d0f1c', sw:7});
+    if (missMsg) K.text(missMsg.txt, W/2, 160, 34, '#fff', {stroke:'#d62839', sw:8});
+  }
+  if (state === 'end') {
+    const best = K.best('gaenseBest');
+    K.panel(760, 420);
+    K.title('ZEIT UM!', 200, 76);
+    K.text('⭐ ' + score + ' Punkte', W/2, 290, 56, '#b37800', {stroke:'#fff', sw:6});
+    K.text(found + ' Gänse richtig gefunden', W/2, 355, 30, '#3b2a1a', {weight:500});
+    K.text(score >= best && score > 0 ? '🏆 Neuer Rekord! 🏆' : 'Rekord: ⭐ ' + best, W/2, 405, 28, '#d62839');
+    if (performance.now() - t0 > 1200) K.blink('Tippen für eine neue Runde!', 475);
+  }
+}
+K.loop((dt, t) => { update(dt); draw(dt, t); });
+window.__game = {get state(){return state}, get geese(){return geese}, tapGoose, start};
+})();
+</script></body></html>

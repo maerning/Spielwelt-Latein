@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Wie hieße ich als Römer?</title></head>
+<body><script src="kit.js"></script>
+<script>
+(async () => {
+const {W, H, ctx} = K;
+const IMG = await K.load({bg:'img/villa.jpg', junge:'img/held.png', maedchen:'img/julia.png'});
+const PRAE = [['Marcus','dem Kriegsgott Mars geweiht'],['Lucius','von lux = das Licht'],['Gaius','wie Gaius Iulius Caesar'],['Quintus','„der Fünfte“'],
+  ['Sextus','„der Sechste“'],['Titus','wie Kaiser Titus'],['Publius','von publicus = für alle'],['Tiberius','nach dem Fluss Tiber'],['Decimus','„der Zehnte“'],['Aulus','ein uralter römischer Vorname']];
+const NOMEN = [['Iulius','die Familie von Caesar'],['Cornelius','eine der berühmtesten Familien Roms'],['Claudius','eine Kaiserfamilie'],['Aurelius','von aurum = das Gold'],
+  ['Flavius','„der Blonde“ – auch eine Kaiserfamilie'],['Valerius','von valere = stark sein'],['Antonius','die Familie des Marcus Antonius'],['Octavius','die Familie von Kaiser Augustus'],['Fabius','von faba = die Bohne'],['Livius','die Familie des Geschichtsschreibers Livius']];
+const COG = [['Felix','Felix','der Glückliche','die Glückliche'],['Magnus','Magna','der Große','die Große'],['Laetus','Laeta','der Fröhliche','die Fröhliche'],
+  ['Celer','Celeris','der Schnelle','die Schnelle'],['Fortis','Fortis','der Tapfere','die Tapfere'],['Prudens','Prudens','der Kluge','die Kluge'],
+  ['Clemens','Clemens','der Sanfte','die Sanfte'],['Rufus','Rufa','der Rothaarige','die Rothaarige'],['Augustus','Augusta','der Erhabene','die Erhabene'],
+  ['Vitalis','Vitalis','der Lebensfrohe','die Lebensfrohe'],['Bonus','Bona','der Gute','die Gute'],['Dulcis','Dulcis','der Süße','die Süße']];
+const ROM = n => { const t = [[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']]; let s = ''; for (const [v, r] of t) while (n >= v) { s += r; n -= v; } return s; };
+
+let state = 'title', gender = null, name = '', age = null, res = null, t0 = 0;
+const GBTN = [{x: W/2 - 400, y: 250, w: 360, h: 330}, {x: W/2 + 40, y: 250, w: 360, h: 330}];
+const KEYS = ['QWERTZUIOPÜ', 'ASDFGHJKLÖÄ', 'YXCVBNM-'];
+const KB = [];
+KEYS.forEach((row, r) => [...row].forEach((ch, i) => KB.push({ch, x: W/2 - row.length * 50 + i * 100 + (r === 2 ? -100 : 0), y: 330 + r * 92, w: 90, h: 80})));
+KB.push({ch: '⌫', x: W/2 + 300, y: 330 + 2*92, w: 120, h: 80});
+KB.push({ch: 'OK', x: W/2 + 430, y: 330 + 2*92, w: 120, h: 80});
+const AGES = [6,7,8,9,10,11,12,13].map((a, i) => ({a, x: W/2 - 4*125 + i*125 + 8, y: 340, w: 110, h: 110}));
+const AGAIN = {x: W/2 + 120, y: 620, w: 400, h: 80};
+
+function hash(s) { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 100003; return h; }
+function make() {
+  const h = hash(name.toLowerCase() + gender);
+  const nom = NOMEN[h % NOMEN.length], cog = COG[Math.floor(h / 7) % COG.length];
+  const f = gender === 'm' ? 0 : 1;
+  const nomName = f ? nom[0].replace(/us$/, 'a') : nom[0];
+  const parts = [];
+  if (!f) { const pr = PRAE[Math.floor(h / 13) % PRAE.length]; parts.push([pr[0], 'Vorname: ' + pr[1]]); }
+  parts.push([nomName, 'Familienname: ' + nom[1]]);
+  parts.push([cog[f], 'Beiname: „' + cog[2 + f] + '“']);
+  res = {parts, full: parts.map(p => p[0]).join(' '), cog: cog[2 + f]};
+}
+K.onTap = (x, y) => {
+  if (state === 'title') { state = 'gender'; K.sfx.tap(); return; }
+  if (state === 'gender') { GBTN.forEach((b, i) => { if (K.hit(x, y, b)) { gender = i ? 'f' : 'm'; state = 'name'; name = ''; K.sfx.tap(); } }); return; }
+  if (state === 'name') { KB.forEach(b => { if (K.hit(x, y, b)) key(b.ch); }); return; }
+  if (state === 'age') { AGES.forEach(b => { if (K.hit(x, y, b)) { age = b.a; reveal(); } }); return; }
+  if (state === 'result' && performance.now() - t0 > 1000) { if (K.hit(x, y, AGAIN)) { state = 'gender'; K.sfx.tap(); } }
+};
+function key(ch) {
+  K.sfx.click();
+  if (ch === '⌫') name = name.slice(0, -1);
+  else if (ch === 'OK') { if (name.length) state = 'age'; }
+  else if (name.length < 14) name = name.length ? name + ch.toLowerCase() : ch;
+}
+K.onKey = e => {
+  if (state === 'name') {
+    if (e.key === 'Backspace') key('⌫'); else if (e.key === 'Enter') key('OK');
+    else if (/^[a-zA-ZäöüÄÖÜß\-]$/.test(e.key)) key(e.key.toUpperCase());
+  } else if (e.code === 'Space' || e.code === 'Enter') K.onTap(-1, -1);
+};
+function reveal() { make(); state = 'result'; t0 = performance.now(); K.sfx.win(); K.confetti(W/2, 200, 70); setTimeout(() => K.confetti(300, 300), 300); setTimeout(() => K.confetti(980, 300), 600); }
+
+function scroll(x, y, w, h) {
+  ctx.fillStyle = 'rgba(0,0,0,.25)'; K.rr(x + 6, y + 8, w, h, 20); ctx.fill();
+  ctx.fillStyle = '#f6e7c1'; K.rr(x, y, w, h, 20); ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#b8935a'; ctx.stroke();
+}
+function draw(dt, t) {
+  K.drawCover(IMG.bg); ctx.fillStyle = 'rgba(255,240,220,.15)'; ctx.fillRect(0, 0, W, H);
+  if (state === 'title') {
+    K.drawH(IMG.junge, 230, 650, 330); K.drawH(IMG.maedchen, W - 230, 650, 330);
+    K.panel(720, 420, 330, false);
+    K.title('WIE HIESSE ICH', 200, 64); K.title('ALS RÖMER?', 270, 64);
+    K.text('Finde deinen echten römischen Namen', W/2, 345, 28, '#3b2a1a');
+    K.text('und erfahre, was er bedeutet!', W/2, 385, 28, '#3b2a1a');
+    K.blink('Tippen zum Starten!', 470);
+  }
+  if (state === 'gender') {
+    K.title('Wer bist du?', 150, 70);
+    [['junge','Ein Junge','#dbe9ff','#1f6fd6'],['maedchen','Ein Mädchen','#ffe1ef','#d6338a']].forEach((g, i) => {
+      const b = GBTN[i];
+      K.rr(b.x, b.y, b.w, b.h, 30); ctx.fillStyle = g[2]; ctx.fill(); ctx.lineWidth = 7; ctx.strokeStyle = g[3]; ctx.stroke();
+      K.drawH(IMG[g[0]], b.x + b.w/2, b.y + 260 + Math.sin(t*4 + i)*5, 230);
+      K.text(g[1], b.x + b.w/2, b.y + 295, 36, g[3]);
+    });
+  }
+  if (state === 'name') {
+    K.title('Wie heißt du?', 120, 64);
+    scroll(W/2 - 330, 175, 660, 110);
+    const cur = Math.floor(t*2) % 2 ? '|' : ' ';
+    K.text((name || '') + cur, W/2, 232, K.fit(name + '|', 600, 64), '#3b2a1a');
+    KB.forEach(b => K.button(b, b.ch, null, {size: b.ch.length > 1 ? 34 : 40, colors: b.ch === 'OK' ? ['#b8f5c8','#5fd38a'] : ['#fffaf0','#f1e2c0'], border: b.ch === 'OK' ? '#1e9e57' : '#d4a017'}));
+    K.text('Tippe deinen Vornamen und dann OK', W/2, 640, 24, '#fff', {stroke:'#3b2a1a', sw:6});
+  }
+  if (state === 'age') {
+    K.title('Wie alt bist du, ' + name + '?', 150, K.fit('Wie alt bist du, ' + name + '?', 1150, 60));
+    K.text('Die Römer schreiben Zahlen so:', W/2, 250, 30, '#fff', {stroke:'#3b2a1a', sw:6});
+    AGES.forEach(b => {
+      K.button(b, ROM(b.a), null, {size: 40, colors:['#fff4d6','#f0cf7a'], border:'#8b5a2b'});
+      K.text(String(b.a), b.x + b.w/2, b.y + b.h + 28, 26, '#fff', {stroke:'#3b2a1a', sw:5});
+    });
+    K.text('I = 1   •   V = 5   •   X = 10', W/2, 560, 34, '#ffd23f', {stroke:'#7d0f1c', sw:7});
+  }
+  if (state === 'result') {
+    const im = gender === 'm' ? IMG.junge : IMG.maedchen;
+    // Porträt im Rahmen
+    ctx.save(); ctx.beginPath(); ctx.arc(250, 330, 175, 0, Math.PI*2); ctx.fillStyle = '#fff7e6'; ctx.fill(); ctx.clip();
+    K.drawH(im, 250, 560, 400); ctx.restore();
+    ctx.beginPath(); ctx.arc(250, 330, 175, 0, Math.PI*2); ctx.lineWidth = 14; ctx.strokeStyle = '#d4a017'; ctx.stroke();
+    ctx.strokeStyle = '#4f9d2a'; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(250, 330, 200, .65*Math.PI, 1.35*Math.PI); ctx.stroke(); ctx.beginPath(); ctx.arc(250, 330, 200, 1.65*Math.PI, 2.35*Math.PI); ctx.stroke();
+    K.text(name, 250, 560, 34, '#fff', {stroke:'#3b2a1a', sw:7});
+    K.text('heißt in Rom:', 250, 600, 26, '#fff', {stroke:'#3b2a1a', sw:6});
+    scroll(470, 60, 780, 520);
+    K.text('Salve,', 860, 110, 34, '#6b4f2a', {weight:500});
+    const appear = Math.min(1, (performance.now() - t0) / 900);
+    ctx.save(); ctx.globalAlpha = appear;
+    K.text(res.full, 860, 175, K.fit(res.full, 730, 64), '#7d0f1c');
+    res.parts.forEach((p, i) => {
+      K.text(p[0], 560, 260 + i * 80, 34, '#3b2a1a', {align:'left'});
+      K.text(p[1], 560, 293 + i * 80, K.fit(p[1], 660, 24, 500), '#6b4f2a', {align:'left', weight:500});
+    });
+    const ly = 260 + res.parts.length * 80 + 10;
+    K.text('Du bist ' + ROM(age) + ' Jahre alt  (' + age + ')', 860, ly, 30, '#3b2a1a');
+    if (gender === 'f') K.text('Wusstest du? Römische Mädchen hießen nach ihrer Familie!', 860, ly + 45, K.fit('Wusstest du? Römische Mädchen hießen nach ihrer Familie!', 720, 22, 500), '#6b4f2a', {weight:500});
+    else K.text('Wusstest du? Römer hatten meist drei Namen!', 860, ly + 45, 22, '#6b4f2a', {weight:500});
+    ctx.restore();
+    if (performance.now() - t0 > 1000) K.button(AGAIN, '🔄 Nächster Name', null, {pulse: true, colors:['#ffd23f','#f5b700'], border:'#b37800'});
+  }
+  K.drawFx(dt);
+}
+K.loop((dt, t) => draw(dt, t));
+window.__game = {get state(){return state}, set: (g, n, a) => { gender = g; name = n; age = a; reveal(); }};
+})();
+</script></body></html>

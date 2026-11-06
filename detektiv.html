@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Latein-Detektiv</title></head>
+<body><script src="kit.js"></script>
+<script>
+(async () => {
+const {W, H, ctx} = K;
+const IMG = await K.load({bg:'img/villa.jpg', det:'img/detektiv.png'});
+// Emoji, Wort, lateinischer Teil (im Wort hervorgehoben), Latein, richtig, falsch, falsch, Erklärung
+const CASES = [
+ ['🎬','VIDEO','VIDEO','video','ich sehe','ich singe','ich esse','Ein Video ist etwas, das man ansieht.'],
+ ['🎧','AUDIO','AUDIO','audio','ich höre','ich rieche','ich schlafe','Audio ist alles, was man hören kann.'],
+ ['🚌','BUS','BUS','omnibus','für alle','für Hunde','für Könige','Der Bus hieß früher „Omnibus“ – ein Wagen für alle!'],
+ ['🐠','AQUARIUM','AQUA','aqua','das Wasser','der Fisch','das Glas','Ein Aquarium ist ein Behälter voller Wasser.'],
+ ['📱','MOBILTELEFON','MOBIL','mobilis','beweglich','teuer','laut','Ein Mobiltelefon kannst du überallhin mitnehmen.'],
+ ['💻','COMPUTER','COMPUT','computare','rechnen','spielen','malen','Ein Computer ist eigentlich eine Rechenmaschine.'],
+ ['🍊','VITAMIN','VITA','vita','das Leben','die Orange','die Farbe','Vitamine brauchst du zum Leben.'],
+ ['☀️','SOLARZELLE','SOL','sol','die Sonne','der Strom','das Dach','Solarzellen machen Strom aus Sonnenlicht.'],
+ ['💯','PROZENT','ZENT','centum','hundert','tausend','zehn','Prozent heißt: von hundert.'],
+ ['🦎','TERRARIUM','TERRA','terra','die Erde','die Eidechse','der Stein','Im Terrarium gibt es Erde statt Wasser.'],
+ ['🌀','VENTILATOR','VENT','ventus','der Wind','der Strom','die Kälte','Ein Ventilator macht Wind.'],
+ ['📻','RADIO','RADI','radius','der Strahl','die Musik','das Rad','Radiowellen sind unsichtbare Strahlen.'],
+ ['🕐','UHR','UHR','hora','die Stunde','der Zeiger','die Glocke','Aus „hora“ wurde unser Wort „Uhr“.'],
+ ['🩺','DOKTOR','DOKTOR','doctor','der Lehrer','der Kranke','der König','Ein „doctor“ war bei den Römern ein Lehrer!'],
+ ['🎤','DUETT','DU','duo','zwei','drei','laut','Bei einem Duett singen zwei zusammen.'],
+ ['🛒','SUPERMARKT','SUPER','super','über, oben','billig','klein','Super heißt „über“ – ein Markt über allen anderen!'],
+ ['📷','KAMERA','KAMERA','camera','die Kammer','das Foto','das Auge','Die allererste Kamera war ein dunkler Raum – eine Kammer!'],
+ ['📅','KALENDER','KALEND','Kalendae','der 1. Tag im Monat','der Geburtstag','die Woche','Die Römer nannten den ersten Tag jedes Monats „Kalendae“.'],
+ ['🎓','SCHULE','SCHUL','schola','die Schule','die Pause','die Tafel','Das Wort „Schule“ kommt direkt vom lateinischen „schola“.']
+];
+const ROUND = 10;
+let state = 'title', list, idx, cur, opts, ans, at, score, t0;
+const BTN = [0,1,2].map(i => ({x: 560, y: 300 + i*118, w: 640, h: 100}));
+const NEXT = {x: 760, y: 640, w: 440, h: 64};
+
+function start() { list = K.shuffle(CASES.slice()).slice(0, ROUND); idx = -1; score = 0; state = 'play'; K.clearFx(); K.musicOn = true; K.music(...K.MEL.geheim, .18); next(); }
+function next() {
+  idx++; if (idx >= ROUND) { state = 'end'; t0 = performance.now(); K.musicOn = false; K.sfx.win(); for (let k = 0; k < 5; k++) setTimeout(() => K.confetti(200 + Math.random()*880, 250), k*200); return; }
+  cur = list[idx]; opts = K.shuffle([cur[4], cur[5], cur[6]]); ans = null; at = 0;
+}
+function choose(i) {
+  if (state !== 'play' || ans !== null) return;
+  ans = i; at = 0;
+  if (opts[i] === cur[4]) { score++; K.sfx.right(); K.confetti(BTN[i].x + 320, BTN[i].y + 50, 30); }
+  else K.sfx.wrong();
+}
+K.onTap = (x, y) => {
+  if (state === 'title') { start(); return; }
+  if (state === 'end') { if (performance.now() - t0 > 1200) start(); return; }
+  if (ans !== null) { if (at > .5) next(); return; }
+  BTN.forEach((b, i) => { if (K.hit(x, y, b)) choose(i); });
+};
+K.onKey = e => {
+  if (state !== 'play') { if (['Space','Enter'].includes(e.code)) K.onTap(-1, -1); return; }
+  if (ans !== null && ['Space','Enter','ArrowRight'].includes(e.code)) { if (at > .5) next(); return; }
+  const m = {Digit1:0, Digit2:1, Digit3:2, Numpad1:0, Numpad2:1, Numpad3:2}[e.code]; if (m !== undefined) choose(m);
+};
+function wordWithHighlight(word, part, cx, y, size) {
+  const i = word.indexOf(part);
+  const a = word.slice(0, i), b = part, c = word.slice(i + part.length);
+  size = K.fit(word, 440, size);
+  ctx.font = `700 ${size}px ${K.FONT}`;
+  const wa = ctx.measureText(a).width, wb = ctx.measureText(b).width, wc = ctx.measureText(c).width;
+  let x = cx - (wa + wb + wc) / 2;
+  K.text(a, x, y, size, '#3b2a1a', {align:'left'}); x += wa;
+  ctx.fillStyle = '#ffd23f'; K.rr(x - 4, y - size*.55, wb + 8, size*1.1, 10); ctx.fill();
+  K.text(b, x, y, size, '#b3202f', {align:'left'}); x += wb;
+  K.text(c, x, y, size, '#3b2a1a', {align:'left'});
+}
+function draw(dt, t) {
+  K.drawCover(IMG.bg); ctx.fillStyle = 'rgba(30,20,10,.35)'; ctx.fillRect(0, 0, W, H);
+  if (state === 'title') {
+    K.drawH(IMG.det, 230, 700, 380);
+    K.panel(760, 480, 340, false);
+    ctx.save(); ctx.translate(140, 0);
+    K.text('LATEIN-DETEKTIV', W/2 - 140, 165, 66, '#ffd23f', {stroke:'#7d0f1c', sw:12});
+    ctx.restore();
+    K.text('Latein ist nicht verschwunden –', W/2, 245, 32, '#3b2a1a');
+    K.text('es versteckt sich in unseren Wörtern!', W/2, 290, 32, '#3b2a1a');
+    K.text('🔍 Bus, Video, Computer, Vitamin …', W/2, 360, 30, '#6b4f2a', {weight:500});
+    K.text('Kannst du ' + ROUND + ' Fälle lösen?', W/2, 420, 30, '#6b4f2a', {weight:500});
+    K.blink('Tippen zum Starten!', 520);
+    K.drawFx(dt); return;
+  }
+  if (state === 'play') {
+    at += dt;
+    K.drawH(IMG.det, 120, 720, 270);
+    // Lupe mit Emoji
+    const lx = 300, ly = 255;
+    ctx.save(); ctx.translate(lx, ly); ctx.rotate(Math.sin(t*1.5)*.04);
+    ctx.lineCap = 'round'; ctx.strokeStyle = '#6b3f1d'; ctx.lineWidth = 30; ctx.beginPath(); ctx.moveTo(110, 110); ctx.lineTo(190, 190); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 150, 0, Math.PI*2); ctx.fillStyle = 'rgba(230,248,255,.95)'; ctx.fill(); ctx.lineWidth = 20; ctx.strokeStyle = '#d4a017'; ctx.stroke();
+    K.text(cur[0], 0, 8, 150, '#000');
+    ctx.restore();
+    // Fallakte
+    K.text('Fall ' + (idx + 1) + ' von ' + ROUND + '  ·  🔍 ' + score + ' gelöst', 990, 36, 24, '#fff', {stroke:'#3b2a1a', sw:6});
+    K.rr(500, 75, 760, 200, 26); ctx.fillStyle = 'rgba(255,250,240,.96)'; ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#d4a017'; ctx.stroke();
+    wordWithHighlight(cur[1], cur[2], 880, 130, 60);
+    K.text('steckt das lateinische Wort  ' + cur[3] + '.', 880, 195, 30, '#3b2a1a', {weight:500});
+    K.text('Was bedeutet ' + cur[3] + '?', 880, 240, 32, '#7d0f1c');
+    BTN.forEach((b, i) => {
+      let st = null; if (ans !== null) st = opts[i] === cur[4] ? 'ok' : (i === ans ? 'bad' : 'dim');
+      K.button(b, opts[i], st, {size: 40});
+    });
+    for (let i = 0; i < ROUND; i++) { ctx.beginPath(); ctx.arc(530 + i*28, 36, 9, 0, Math.PI*2); ctx.fillStyle = i < idx ? '#7ae582' : i === idx ? '#ffd23f' : 'rgba(255,255,255,.4)'; ctx.fill(); }
+    if (ans !== null) {
+      K.rr(30, 560, 700, 140, 22); ctx.fillStyle = opts[ans] === cur[4] ? 'rgba(30,158,87,.95)' : 'rgba(214,40,57,.95)'; ctx.fill();
+      K.text(opts[ans] === cur[4] ? '✔ Fall gelöst!' : '✘ Knapp daneben! ' + cur[3] + ' = ' + cur[4], 380, 600, K.fit(opts[ans] === cur[4] ? '✔ Fall gelöst!' : '✘ Knapp daneben! ' + cur[3] + ' = ' + cur[4], 660, 32), '#fff');
+      K.text(cur[7], 380, 655, K.fit(cur[7], 660, 24, 500), '#fff', {weight:500});
+      if (at > .5) K.button(NEXT, 'Weiter ➜', null, {pulse:true, size:32, colors:['#ffd23f','#f5b700'], border:'#b37800'});
+    }
+  }
+  K.drawFx(dt);
+  if (state === 'end') {
+    const badge = score >= 9 ? ['🥇','Meisterdetektiv!'] : score >= 6 ? ['🥈','Super-Spürnase!'] : ['🥉','Detektiv-Lehrling!'];
+    K.panel(760, 460);
+    K.text(badge[0], W/2, 200, 110, '#000');
+    K.title(badge[1], 310, 60);
+    K.text(score + ' von ' + ROUND + ' Fällen gelöst', W/2, 385, 36, '#3b2a1a');
+    K.text('Latein steckt wirklich überall!', W/2, 435, 28, '#6b4f2a', {weight:500});
+    if (performance.now() - t0 > 1200) K.blink('Tippen für neue Fälle!', 505);
+  }
+}
+K.loop((dt, t) => draw(dt, t));
+window.__game = {get state(){return state}, get cur(){return cur}, get opts(){return opts}, choose, next, start};
+})();
+</script></body></html>
